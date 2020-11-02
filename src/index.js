@@ -71,7 +71,7 @@ function App() {
   useScroll(
     ({ xy: [, y] }) => {
       console.log(y)
-      scroll !== 0 && container.current && setCurrentScrollTop(container.current.scrollTop)
+      container.current && setCurrentScrollTop(container.current.scrollTop)
     },
     {
       domTarget: container,
