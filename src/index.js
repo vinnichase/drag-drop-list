@@ -1,11 +1,19 @@
 import { render } from 'react-dom'
 import React, { useState, useRef } from 'react'
-import { useTransition, animated } from 'react-spring'
+import { animated } from 'react-spring'
 import { useDrag } from 'react-use-gesture'
+import clamp from 'lodash-es/clamp'
+import swap from 'lodash-move'
 import data from './data'
 import './styles.css'
 import useWindowDimensions from './useWindowDimensions'
 import useInterval from './useInterval'
+
+// Returns fitting styles for dragged/idle items
+const fn = (order, down, originalIndex, curIndex, y) => index =>
+  down && index === originalIndex
+    ? { y: curIndex * 100 + y, scale: 1.1, zIndex: '1', shadow: 15, immediate: n => n === 'y' || n === 'zIndex' }
+    : { y: order.indexOf(index) * 100, scale: 1, zIndex: '0', shadow: 1, immediate: false }
 
 function App() {
   const [scroll, setScroll] = useState(0)
@@ -19,21 +27,33 @@ function App() {
     }
   }, 10)
 
-  const bind = useDrag(({ xy: [, y], dragging }) => {
+  const order = useRef(data.map((_, index) => index)) // Store indicies as a local ref, this represents the item order
+  const [springs, setSprings] = useSprings(data.length, fn(order.current)) // Create springs, each corresponds to an item, controlling its transform, scale, etc.
+
+  const bind = useDrag(({ args: [originalIndex], down, delta: [, y], xy: [, vy], dragging }) => {
     setIsDragging(dragging)
     if (dragging) {
+
+      const curIndex = order.current.indexOf(originalIndex)
+      const curRow = clamp(Math.round((curIndex * 100 + y) / 100), 0, data.length - 1)
+      const newOrder = swap(order.current, curIndex, curRow)
+      setSprings(fn(newOrder, down, originalIndex, curIndex, y)) // Feed springs new style data, they'll animate the view without causing a single render
+      if (!down) order.current = newOrder
+
+      /* #region drag scroll  */
       const boundsSize = 0.15 * vh;
       const topBounds = boundsSize;
       const bottomBounds = vh - boundsSize;
-      if (y < topBounds) {
-        setScroll((y - topBounds) / boundsSize)
+      if (vy < topBounds) {
+        setScroll((vy - topBounds) / boundsSize)
       }
-      if (scroll !== 0 && y >= topBounds && y <= bottomBounds) {
+      if (scroll !== 0 && vy >= topBounds && vy <= bottomBounds) {
         setScroll(0)
       }
-      if (y > bottomBounds) {
-        setScroll((y - bottomBounds) / boundsSize)
+      if (vy > bottomBounds) {
+        setScroll((vy - bottomBounds) / boundsSize)
       }
+      /* #endregion */
     } else {
       setScroll(0)
     }
@@ -41,35 +61,21 @@ function App() {
     passive: false
   })
 
-  /* #region   */
-  const [rows, set] = useState(data)
-  let height = 0
-  const transitions = useTransition(
-    rows.map((data) => ({ ...data, y: (height += data.height) - data.height })),
-    (d) => d.name,
-    {
-      from: { height: 0, opacity: 0 },
-      leave: { height: 0, opacity: 0 },
-      enter: ({ y, height }) => ({ y, height, opacity: 1 }),
-      update: ({ y, height }) => ({ y, height })
-    }
-  )
-  /* #endregion */
-
   return (
     <div ref={container} className="list-container" style={{ touchAction: isDragging ? 'none' : undefined }}>
       <div className="list" style={{ height }}>
-        {transitions.map(({ item, props: { y, ...rest }, key }, index) => (
+        {springs.map(({ zIndex, shadow, y, scale }, i) => (
           <animated.div
-            {...bind()}
-            key={key}
+            {...bind(i)}
+            key={i}
             className="card"
             style={{
-              zIndex: data.length - index,
-              transform: y.interpolate((y) => `translate3d(0,${y}px,0)`),
-              ...rest
-            }}>
-            <div className="details" style={{ backgroundImage: item.css }} />
+              zIndex,
+              boxShadow: shadow.interpolate(s => `rgba(0, 0, 0, 0.15) 0px ${s}px ${2 * s}px 0px`),
+              transform: interpolate([y, scale], (yp, s) => `translate3d(0,${yp}px,0) scale(${s})`)
+            }}
+          >
+            <div className="details" style={{ backgroundImage: data[i].css }} />
           </animated.div>
         ))}
       </div>
