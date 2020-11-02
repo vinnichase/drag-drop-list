@@ -1,6 +1,6 @@
 import { render } from 'react-dom'
 import React, { useState, useRef } from 'react'
-import { animated } from 'react-spring'
+import { animated, useSprings, interpolate } from 'react-spring'
 import { useDrag } from 'react-use-gesture'
 import clamp from 'lodash-es/clamp'
 import swap from 'lodash-move'
@@ -27,7 +27,8 @@ function App() {
     }
   }, 10)
 
-  const order = useRef(data.map((_, index) => index)) // Store indicies as a local ref, this represents the item order
+  let height = 0
+  const order = useRef(data.map((d, index) => { (height += d.height); return index })) // Store indicies as a local ref, this represents the item order
   const [springs, setSprings] = useSprings(data.length, fn(order.current)) // Create springs, each corresponds to an item, controlling its transform, scale, etc.
 
   const bind = useDrag(({ args: [originalIndex], down, delta: [, y], xy: [, vy], dragging }) => {
@@ -64,18 +65,20 @@ function App() {
   return (
     <div ref={container} className="list-container" style={{ touchAction: isDragging ? 'none' : undefined }}>
       <div className="list" style={{ height }}>
-        {springs.map(({ zIndex, shadow, y, scale }, i) => (
+        {springs.map(({ zIndex, shadow, y, scale, ...rest }, i) => (
           <animated.div
             {...bind(i)}
-            key={i}
+            key={data[i].name}
             className="card"
             style={{
               zIndex,
               boxShadow: shadow.interpolate(s => `rgba(0, 0, 0, 0.15) 0px ${s}px ${2 * s}px 0px`),
-              transform: interpolate([y, scale], (yp, s) => `translate3d(0,${yp}px,0) scale(${s})`)
+              transform: interpolate([y, scale], (yp, s) => `translate3d(0,${yp}px,0) scale(${s})`),
+              ...rest
             }}
           >
-            <div className="details" style={{ backgroundImage: data[i].css }} />
+            {console.log(rest)}
+            <div className="details" />
           </animated.div>
         ))}
       </div>
