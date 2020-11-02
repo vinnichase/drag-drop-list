@@ -36,7 +36,7 @@ function App() {
     if (dragging) {
 
       const curIndex = order.current.indexOf(originalIndex)
-      const curRow = clamp(Math.round((curIndex * 100 + y) / 100), 0, data.length - 1)
+      const curRow = clamp(Math.round((curIndex * data[originalIndex].height + data[originalIndex].height) / 100), 0, data.length - 1)
       const newOrder = swap(order.current, curIndex, curRow)
       setSprings(fn(newOrder, down, originalIndex, curIndex, y)) // Feed springs new style data, they'll animate the view without causing a single render
       if (!down) order.current = newOrder
@@ -65,7 +65,7 @@ function App() {
   return (
     <div ref={container} className="list-container" style={{ touchAction: isDragging ? 'none' : undefined }}>
       <div className="list" style={{ height }}>
-        {springs.map(({ zIndex, shadow, y, scale, ...rest }, i) => (
+        {springs.map(({ zIndex, shadow, y, scale }, i) => (
           <animated.div
             {...bind(i)}
             key={data[i].name}
@@ -74,10 +74,9 @@ function App() {
               zIndex,
               boxShadow: shadow.interpolate(s => `rgba(0, 0, 0, 0.15) 0px ${s}px ${2 * s}px 0px`),
               transform: interpolate([y, scale], (yp, s) => `translate3d(0,${yp}px,0) scale(${s})`),
-              ...rest
+              height: data[i].height
             }}
           >
-            {console.log(rest)}
             <div className="details" />
           </animated.div>
         ))}
