@@ -57,7 +57,7 @@ function App() {
   /* #endregion */
 
   return (
-    <div ref={container} className="list-container">
+    <div ref={container} className="list-container" style={{ touchAction: isDragging ? 'none' : undefined }}>
       <div className="list" style={{ height }}>
         {transitions.map(({ item, props: { y, ...rest }, key }, index) => (
           <animated.div
