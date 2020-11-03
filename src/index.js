@@ -1,3 +1,4 @@
+import * as R from 'ramda';
 import { render } from 'react-dom'
 import React, { useState, useRef } from 'react'
 import { animated, useSprings, interpolate } from 'react-spring'
@@ -13,7 +14,12 @@ import useInterval from './useInterval'
 const fn = (order, down, originalIndex, curIndex, y) => (index) =>
   down && index === originalIndex
     ? { y: curIndex * 100 + y, scale: 1.1, zIndex: '1', shadow: 15, immediate: (n) => n === 'y' || n === 'zIndex' }
-    : { y: order.indexOf(index) * 100, scale: 1, zIndex: '0', shadow: 1, immediate: false }
+    : {
+      y: R.compose(
+        R.reduce((result, nextHeight) => result + nextHeight.height, 0),
+        R.take(order.findIndex(o => o.index === index))
+      )(order), scale: 1, zIndex: '0', shadow: 1, immediate: false
+    }
 
 function App() {
   const [scroll, setScroll] = useState(0)
@@ -27,12 +33,11 @@ function App() {
     }
   }, 10)
 
-  let height = 0
   const order = useRef(
-    data.map((d, index) => {
-      height += d.height
-      return index
-    })
+    data.map((d, index) => ({
+      index,
+      height: d.height,
+    }))
   ) // Store indicies as a local ref, this represents the item order
   const [springs, setSprings] = useSprings(data.length, fn(order.current)) // Create springs, each corresponds to an item, controlling its transform, scale, etc.
 
@@ -40,8 +45,9 @@ function App() {
     ({ args: [originalIndex], down, delta: [, y], xy: [, vy] }) => {
       setIsDragging(down)
       if (down) {
-        const curIndex = order.current.indexOf(originalIndex)
+        const curIndex = order.current.findIndex(o => o.index === originalIndex)
         const curRow = clamp(
+          // Math.round((curIndex * 100 + y) / 100)
           Math.round((curIndex * data[originalIndex].height + data[originalIndex].height) / 100),
           0,
           data.length - 1
@@ -75,7 +81,7 @@ function App() {
 
   return (
     <div ref={container} className="list-container" style={{ touchAction: isDragging ? 'none' : undefined }}>
-      <div className="list" style={{ height }}>
+      <div className="list" style={{ height: order.current.reduce((result, nextHeight) => result + nextHeight.height, 0) }}>
         {springs.map(({ zIndex, shadow, y, scale }, i) => (
           <animated.div
             {...bind(i)}
@@ -88,7 +94,7 @@ function App() {
               height: data[i].height,
               touchAction: isDragging ? 'none' : undefined
             }}
-            ref={ref => ref && console.log(ref.clientHeight)}
+          // ref={ref => ref && console.log(ref.clientHeight)}
           >
             <div className="details" />
           </animated.div>
