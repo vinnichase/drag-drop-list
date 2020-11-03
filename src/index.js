@@ -10,9 +10,9 @@ import useWindowDimensions from './useWindowDimensions'
 import useInterval from './useInterval'
 
 // Returns fitting styles for dragged/idle items
-const fn = (order, down, originalIndex, curIndex, y) => index =>
+const fn = (order, down, originalIndex, curIndex, y) => (index) =>
   down && index === originalIndex
-    ? { y: curIndex * 100 + y, scale: 1.1, zIndex: '1', shadow: 15, immediate: n => n === 'y' || n === 'zIndex' }
+    ? { y: curIndex * 100 + y, scale: 1.1, zIndex: '1', shadow: 15, immediate: (n) => n === 'y' || n === 'zIndex' }
     : { y: order.indexOf(index) * 100, scale: 1, zIndex: '0', shadow: 1, immediate: false }
 
 function App() {
@@ -28,39 +28,50 @@ function App() {
   }, 10)
 
   let height = 0
-  const order = useRef(data.map((d, index) => { (height += d.height); return index })) // Store indicies as a local ref, this represents the item order
+  const order = useRef(
+    data.map((d, index) => {
+      height += d.height
+      return index
+    })
+  ) // Store indicies as a local ref, this represents the item order
   const [springs, setSprings] = useSprings(data.length, fn(order.current)) // Create springs, each corresponds to an item, controlling its transform, scale, etc.
 
-  const bind = useDrag(({ args: [originalIndex], down, delta: [, y], xy: [, vy], dragging }) => {
-    setIsDragging(dragging)
-    if (dragging) {
+  const bind = useDrag(
+    ({ args: [originalIndex], down, delta: [, y], xy: [, vy] }) => {
+      setIsDragging(down)
+      if (down) {
+        const curIndex = order.current.indexOf(originalIndex)
+        const curRow = clamp(
+          Math.round((curIndex * data[originalIndex].height + data[originalIndex].height) / 100),
+          0,
+          data.length - 1
+        )
+        const newOrder = swap(order.current, curIndex, curRow)
+        setSprings(fn(newOrder, down, originalIndex, curIndex, y)) // Feed springs new style data, they'll animate the view without causing a single render
+        if (!down) order.current = newOrder
 
-      const curIndex = order.current.indexOf(originalIndex)
-      const curRow = clamp(Math.round((curIndex * data[originalIndex].height + data[originalIndex].height) / 100), 0, data.length - 1)
-      const newOrder = swap(order.current, curIndex, curRow)
-      setSprings(fn(newOrder, down, originalIndex, curIndex, y)) // Feed springs new style data, they'll animate the view without causing a single render
-      if (!down) order.current = newOrder
-
-      /* #region drag scroll  */
-      const boundsSize = 0.15 * vh;
-      const topBounds = boundsSize;
-      const bottomBounds = vh - boundsSize;
-      if (vy < topBounds) {
-        setScroll((vy - topBounds) / boundsSize)
-      }
-      if (scroll !== 0 && vy >= topBounds && vy <= bottomBounds) {
+        /* #region drag scroll  */
+        const boundsSize = 0.15 * vh
+        const topBounds = boundsSize
+        const bottomBounds = vh - boundsSize
+        if (vy < topBounds) {
+          setScroll((vy - topBounds) / boundsSize)
+        }
+        if (scroll !== 0 && vy >= topBounds && vy <= bottomBounds) {
+          setScroll(0)
+        }
+        if (vy > bottomBounds) {
+          setScroll((vy - bottomBounds) / boundsSize)
+        }
+        /* #endregion */
+      } else {
         setScroll(0)
       }
-      if (vy > bottomBounds) {
-        setScroll((vy - bottomBounds) / boundsSize)
-      }
-      /* #endregion */
-    } else {
-      setScroll(0)
+    },
+    {
+      passive: false
     }
-  }, {
-    passive: false
-  })
+  )
 
   return (
     <div ref={container} className="list-container" style={{ touchAction: isDragging ? 'none' : undefined }}>
@@ -72,11 +83,11 @@ function App() {
             className="card"
             style={{
               zIndex,
-              boxShadow: shadow.interpolate(s => `rgba(0, 0, 0, 0.15) 0px ${s}px ${2 * s}px 0px`),
+              boxShadow: shadow.interpolate((s) => `rgba(0, 0, 0, 0.15) 0px ${s}px ${2 * s}px 0px`),
               transform: interpolate([y, scale], (yp, s) => `translate3d(0,${yp}px,0) scale(${s})`),
-              height: data[i].height
-            }}
-          >
+              height: data[i].height,
+              touchAction: isDragging ? 'none' : undefined
+            }}>
             <div className="details" />
           </animated.div>
         ))}
