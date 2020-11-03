@@ -1,24 +1,35 @@
 import * as R from 'ramda';
 import { render } from 'react-dom'
 import React, { useState, useRef } from 'react'
-import { animated, useSprings, interpolate } from 'react-spring'
+import { animated, useSprings, interpolate, useSpring } from 'react-spring'
 import { useDrag } from 'react-use-gesture'
 import clamp from 'lodash-es/clamp'
-import swap from 'lodash-move'
+import move from 'lodash-move'
 import data from './data'
 import './styles.css'
 import useWindowDimensions from './useWindowDimensions'
 import useInterval from './useInterval'
 
 // Returns fitting styles for dragged/idle items
-const fn = (order, down, originalIndex, curIndex, y) => (index) =>
+const fn = (order, down, originalIndex, dragY) => (index) =>
   down && index === originalIndex
-    ? { y: curIndex * 100 + y, scale: 1.1, zIndex: '1', shadow: 15, immediate: (n) => n === 'y' || n === 'zIndex' }
+    ? {
+      // curIndex * 100 + y
+      y: dragY,
+      scale: 1.1,
+      zIndex: '1',
+      shadow: 15,
+      immediate: n => n === 'y' || n === 'zIndex'
+    }
     : {
       y: R.compose(
-        R.reduce((result, nextHeight) => result + nextHeight.height, 0),
+        R.reduce((result, next) => result + next.height, 0),
         R.take(order.findIndex(o => o.index === index))
-      )(order), scale: 1, zIndex: '0', shadow: 1, immediate: false
+      )(order),
+      scale: 1,
+      zIndex: '0',
+      shadow: 1,
+      immediate: false
     }
 
 function App() {
@@ -34,9 +45,13 @@ function App() {
   }, 10)
 
   const order = useRef(
-    data.map((d, index) => ({
+    data.map((d, index, arr) => ({
       index,
       height: d.height,
+      yPos: R.compose(
+        R.reduce((result, next) => result + next.height, 0),
+        R.take(index)
+      )(arr)
     }))
   ) // Store indicies as a local ref, this represents the item order
   const [springs, setSprings] = useSprings(data.length, fn(order.current)) // Create springs, each corresponds to an item, controlling its transform, scale, etc.
@@ -44,18 +59,18 @@ function App() {
   const bind = useDrag(
     ({ args: [originalIndex], down, delta: [, y], xy: [, vy] }) => {
       setIsDragging(down)
-      if (down) {
-        const curIndex = order.current.findIndex(o => o.index === originalIndex)
-        const curRow = clamp(
-          // Math.round((curIndex * 100 + y) / 100)
-          Math.round((curIndex * data[originalIndex].height + data[originalIndex].height) / 100),
-          0,
-          data.length - 1
-        )
-        const newOrder = swap(order.current, curIndex, curRow)
-        setSprings(fn(newOrder, down, originalIndex, curIndex, y)) // Feed springs new style data, they'll animate the view without causing a single render
-        if (!down) order.current = newOrder
+      const curIndex = order.current.findIndex(o => o.index === originalIndex)
+      const curYPos = order.current[curIndex].yPos += y;
+      const curRow = clamp(
+        // Math.round((curIndex * 100 + y) / 100)
+        order.current.findIndex(o => o.yPos > (curYPos)),
+        0,
+        data.length - 1
+      )
+      const newOrder = move(order.current, curIndex, curRow)
+      setSprings(fn(newOrder, down, originalIndex, curYPos)) // Feed springs new style data, they'll animate the view without causing a single render
 
+      if (down) {
         /* #region drag scroll  */
         const boundsSize = 0.15 * vh
         const topBounds = boundsSize
@@ -71,17 +86,18 @@ function App() {
         }
         /* #endregion */
       } else {
+        order.current = newOrder
         setScroll(0)
       }
     },
-    {
-      passive: false
-    }
+    // {
+    //   passive: false
+    // }
   )
 
   return (
     <div ref={container} className="list-container" style={{ touchAction: isDragging ? 'none' : undefined }}>
-      <div className="list" style={{ height: order.current.reduce((result, nextHeight) => result + nextHeight.height, 0) }}>
+      <div className="list" style={{ height: order.current.reduce((result, next) => result + next.height, 0) }}>
         {springs.map(({ zIndex, shadow, y, scale }, i) => (
           <animated.div
             {...bind(i)}
