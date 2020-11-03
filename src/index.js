@@ -87,7 +87,9 @@ function App() {
               transform: interpolate([y, scale], (yp, s) => `translate3d(0,${yp}px,0) scale(${s})`),
               height: data[i].height,
               touchAction: isDragging ? 'none' : undefined
-            }}>
+            }}
+            ref={ref => ref && console.log(ref.clientHeight)}
+          >
             <div className="details" />
           </animated.div>
         ))}
