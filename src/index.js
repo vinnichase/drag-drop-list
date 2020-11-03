@@ -65,10 +65,9 @@ function App() {
             const curIndex = order.current.findIndex(o => o.index === originalIndex);
             const curYPos = order.current[curIndex].yPos += y;
             const curRow = clamp(
-                // Math.round((curIndex * 100 + y) / 100)
-                order.current.findIndex(o => o.yPos > (curYPos)),
+                order.current.findIndex(o => o.yPos > (curYPos)) - 1,
                 0,
-                data.length - 1,
+                order.current.length - 1,
             );
             const newOrder = move(order.current, curIndex, curRow);
             setSprings(fn(newOrder, down, originalIndex, curYPos)); // Feed springs new style data, they'll animate the view without causing a single render
