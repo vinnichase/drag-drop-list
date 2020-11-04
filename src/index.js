@@ -13,36 +13,40 @@ import useWindowDimensions from './useWindowDimensions';
 import useInterval from './useInterval';
 
 // Returns fitting styles for dragged/idle items
-const fn = (order, down, originalIndex, dragY) => index => down && index === originalIndex
+const fn = (order, dragging, originalIndex, dragY, immediate = false) => index => dragging && index === originalIndex
     ? {
         y: dragY,
-        scale: 1.03,
+        scale: 1.1,
         zIndex: '1',
-        shadow: 7,
+        shadow: 15,
         position: 'fixed',
         immediate: n => ['fixed', 'y', 'zIndex'].includes(n),
     }
     : {
-        y: R.compose(
-            R.reduce((result, next) => result + next.height, 0),
-            R.take(order.findIndex(o => o.index === index)),
-        )(order),
+        y: immediate && index === originalIndex
+            ? dragY
+            : R.compose(
+                R.reduce((result, next) => result + next.height, 0),
+                R.take(order.findIndex(o => o.index === index)),
+            )(order),
         scale: 1,
         zIndex: '0',
         shadow: 1,
         position: 'absolute',
-        immediate: false,
+        immediate: n => immediate && n === 'y',
     };
 
 function App() {
     const [scroll, setScroll] = useState(0);
-    // const [isDragging, setIsDragging] = useState(false);
+    const [isDragging, setIsDragging] = useState(false);
     const [, vh] = useWindowDimensions();
     const container = useRef(null);
 
     useInterval(() => {
         if (scroll !== 0) {
-            container.current.scrollTop += scroll * 10;
+            const scrollStep = scroll * 10;
+            container.current.scrollTop += scrollStep;
+            // dragY.current += scrollStep;
         }
     }, 10);
 
@@ -62,10 +66,10 @@ function App() {
     const bind = useDrag(
         ({
             // eslint-disable-next-line no-unused-vars
-            args: [originalIndex], dragging, delta: [, deltaY], xy: [, vy], first, last,
+            args: [originalIndex], dragging, delta: [, deltaY], xy: [, vy], first,
         }) => {
             container.current.style.touchAction = 'none';
-            // setIsDragging(dragging);
+            setIsDragging(dragging);
             const curIndex = order.current.findIndex(o => o.index === originalIndex);
             const curScrollTop = container.current.scrollTop;
             const itemYPos = order.current[curIndex].yPos;
@@ -74,13 +78,18 @@ function App() {
             } else {
                 dragY.current += deltaY;
             }
-            const curYPos = curScrollTop + vy;
+            const curYPos = curScrollTop + dragY.current;
+            const newIndex = order.current.findIndex(o => (o.yPos + o.height / 2) > curYPos);
+            console.log(newIndex);
             const curRow = clamp(
-                order.current.findIndex(o => o.yPos > (curYPos)) - 1,
+                newIndex >= 0 ? newIndex : order.current.length,
                 0,
                 order.current.length - 1,
             );
             const newOrder = move(order.current, curIndex, curRow);
+            if (!dragging) {
+                setSprings(fn(newOrder, dragging, originalIndex, curYPos, true));
+            }
             setSprings(fn(newOrder, dragging, originalIndex, dragY.current)); // Feed springs new style data, they'll animate the view without causing a single render
 
             if (dragging) {
@@ -107,8 +116,8 @@ function App() {
     );
 
     return (
-        <div ref={container} className="list-container">
-            {/* style={{ touchAction: isDragging ? 'none' : undefined }} */}
+        <div ref={container} className="list-container" style={{ touchAction: isDragging ? 'none' : undefined }}>
+            {/* */}
             <div className="list" style={{ height: order.current.reduce((result, next) => result + next.height, 0) }}>
                 {springs.map(({
                     zIndex, shadow, y, scale, position,
@@ -123,7 +132,7 @@ function App() {
                             boxShadow: shadow.interpolate(s => `rgba(0, 0, 0, 0.15) 0px ${s}px ${2 * s}px 0px`),
                             transform: interpolate([y, scale], (yp, s) => `translate3d(0,${yp}px,0) scale(${s})`),
                             height: data[i].height,
-                            // touchAction: isDragging ? 'none' : undefined,
+                            touchAction: isDragging ? 'none' : undefined,
                         }}
                     >
                         <div className="details" />
