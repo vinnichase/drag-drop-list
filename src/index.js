@@ -36,7 +36,7 @@ const fn = (order, down, originalIndex, dragY) => index => down && index === ori
 
 function App() {
     const [scroll, setScroll] = useState(0);
-    const [isDragging, setIsDragging] = useState(false);
+    // const [isDragging, setIsDragging] = useState(false);
     const [, vh] = useWindowDimensions();
     const container = useRef(null);
 
@@ -62,9 +62,10 @@ function App() {
     const bind = useDrag(
         ({
             // eslint-disable-next-line no-unused-vars
-            args: [originalIndex], dragging, delta: [, deltaY], xy: [, vy], first,
+            args: [originalIndex], dragging, delta: [, deltaY], xy: [, vy], first, last,
         }) => {
-            setIsDragging(dragging);
+            container.current.style.touchAction = 'none';
+            // setIsDragging(dragging);
             const curIndex = order.current.findIndex(o => o.index === originalIndex);
             const curScrollTop = container.current.scrollTop;
             const itemYPos = order.current[curIndex].yPos;
@@ -106,7 +107,8 @@ function App() {
     );
 
     return (
-        <div ref={container} className="list-container" style={{ touchAction: isDragging ? 'none' : undefined }}>
+        <div ref={container} className="list-container">
+            {/* style={{ touchAction: isDragging ? 'none' : undefined }} */}
             <div className="list" style={{ height: order.current.reduce((result, next) => result + next.height, 0) }}>
                 {springs.map(({
                     zIndex, shadow, y, scale, position,
@@ -121,7 +123,7 @@ function App() {
                             boxShadow: shadow.interpolate(s => `rgba(0, 0, 0, 0.15) 0px ${s}px ${2 * s}px 0px`),
                             transform: interpolate([y, scale], (yp, s) => `translate3d(0,${yp}px,0) scale(${s})`),
                             height: data[i].height,
-                            touchAction: isDragging ? 'none' : undefined,
+                            // touchAction: isDragging ? 'none' : undefined,
                         }}
                     >
                         <div className="details" />
