@@ -15,12 +15,12 @@ import useInterval from './useInterval';
 // Returns fitting styles for dragged/idle items
 const fn = (order, down, originalIndex, dragY) => index => down && index === originalIndex
     ? {
-        // curIndex * 100 + y
         y: dragY,
-        scale: 1.1,
+        scale: 1.03,
         zIndex: '1',
-        shadow: 15,
-        immediate: n => n === 'y' || n === 'zIndex',
+        shadow: 7,
+        position: 'fixed',
+        immediate: n => ['fixed', 'y', 'zIndex'].includes(n),
     }
     : {
         y: R.compose(
@@ -30,6 +30,7 @@ const fn = (order, down, originalIndex, dragY) => index => down && index === ori
         scale: 1,
         zIndex: '0',
         shadow: 1,
+        position: 'absolute',
         immediate: false,
     };
 
@@ -57,22 +58,31 @@ function App() {
     ); // Store indicies as a local ref, this represents the item order
     const [springs, setSprings] = useSprings(data.length, fn(order.current)); // Create springs, each corresponds to an item, controlling its transform, scale, etc.
 
+    const dragY = useRef(0);
     const bind = useDrag(
         ({
-            args: [originalIndex], down, delta: [, y], xy: [, vy],
+            // eslint-disable-next-line no-unused-vars
+            args: [originalIndex], dragging, delta: [, deltaY], xy: [, vy], first,
         }) => {
-            setIsDragging(down);
+            setIsDragging(dragging);
             const curIndex = order.current.findIndex(o => o.index === originalIndex);
-            const curYPos = order.current[curIndex].yPos += y;
+            const curScrollTop = container.current.scrollTop;
+            const itemYPos = order.current[curIndex].yPos;
+            if (first) {
+                dragY.current = itemYPos - curScrollTop;
+            } else {
+                dragY.current += deltaY;
+            }
+            const curYPos = curScrollTop + vy;
             const curRow = clamp(
                 order.current.findIndex(o => o.yPos > (curYPos)) - 1,
                 0,
                 order.current.length - 1,
             );
             const newOrder = move(order.current, curIndex, curRow);
-            setSprings(fn(newOrder, down, originalIndex, curYPos)); // Feed springs new style data, they'll animate the view without causing a single render
+            setSprings(fn(newOrder, dragging, originalIndex, dragY.current)); // Feed springs new style data, they'll animate the view without causing a single render
 
-            if (down) {
+            if (dragging) {
                 /* #region drag scroll  */
                 const boundsSize = 0.15 * vh;
                 const topBounds = boundsSize;
@@ -88,6 +98,7 @@ function App() {
                 }
                 /* #endregion */
             } else {
+                dragY.current = 0;
                 order.current = newOrder;
                 setScroll(0);
             }
@@ -98,13 +109,14 @@ function App() {
         <div ref={container} className="list-container" style={{ touchAction: isDragging ? 'none' : undefined }}>
             <div className="list" style={{ height: order.current.reduce((result, next) => result + next.height, 0) }}>
                 {springs.map(({
-                    zIndex, shadow, y, scale,
+                    zIndex, shadow, y, scale, position,
                 }, i) => (
                     <animated.div
                         {...bind(i)}
                         key={data[i].name}
                         className="card"
                         style={{
+                            position,
                             zIndex,
                             boxShadow: shadow.interpolate(s => `rgba(0, 0, 0, 0.15) 0px ${s}px ${2 * s}px 0px`),
                             transform: interpolate([y, scale], (yp, s) => `translate3d(0,${yp}px,0) scale(${s})`),
