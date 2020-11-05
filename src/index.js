@@ -12,6 +12,23 @@ import './styles.css';
 import useWindowDimensions from './useWindowDimensions';
 import useInterval from './useInterval';
 
+const createOrder = R.compose(
+    R.nth(1),
+    R.addIndex(R.mapAccum)((yPos, item, index) => [yPos + item.height, {
+        index,
+        height: item.height,
+        yPos,
+    }], 0),
+);
+
+const updateOrder = R.compose(
+    R.nth(1),
+    R.mapAccum((yPos, item) => [yPos + item.height, {
+        ...item,
+        yPos,
+    }], 0),
+);
+
 // Returns fitting styles for dragged/idle items
 const fn = (order, dragging, originalIndex, dragY, immediate = false) => index => dragging && index === originalIndex
     ? {
@@ -52,14 +69,7 @@ function App() {
     }, 10);
 
     const order = useRef(
-        data.map((d, index, arr) => ({
-            index,
-            height: d.height,
-            yPos: R.compose(
-                R.reduce((result, next) => result + next.height, 0),
-                R.take(index),
-            )(arr),
-        })),
+        createOrder(data),
     ); // Store indicies as a local ref, this represents the item order
     const [springs, setSprings] = useSprings(data.length, fn(order.current)); // Create springs, each corresponds to an item, controlling its transform, scale, etc.
 
@@ -118,7 +128,7 @@ function App() {
                 /* #endregion */
             } else {
                 dragY.current = 0;
-                order.current = newOrder;
+                order.current = updateOrder(newOrder);
                 setScroll(0);
             }
         },
@@ -130,7 +140,6 @@ function App() {
             className="list-container"
             style={{ touchAction: isDragging ? 'none' : undefined }}
         >
-            {/* */}
             <div
                 className="list"
                 style={{
