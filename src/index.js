@@ -59,6 +59,8 @@ function App() {
     const [, vh] = useWindowDimensions();
     const scroll = useRef(0);
     const container = useRef(null);
+    const [order, setOrder] = useState(createOrder(data));
+    const [springs, setSprings] = useSprings(data.length, fn(order));
 
     console.log('RERENDER');
 
@@ -68,11 +70,6 @@ function App() {
             container.current.scrollTop += scrollStep;
         }
     }, 10);
-
-    const order = useRef(
-        createOrder(data),
-    ); // Store indicies as a local ref, this represents the item order
-    const [springs, setSprings] = useSprings(data.length, fn(order.current)); // Create springs, each corresponds to an item, controlling its transform, scale, etc.
 
     const dragY = useRef(0);
     const bind = useDrag(
@@ -86,26 +83,26 @@ function App() {
         }) => {
             container.current.style.touchAction = 'none';
             setIsDragging(dragging);
-            const curIndex = order.current.findIndex(
+            const curIndex = order.findIndex(
                 o => o.index === originalIndex,
             );
             const curScrollTop = container.current.scrollTop;
-            const itemYPos = order.current[curIndex].yPos;
+            const itemYPos = order[curIndex].yPos;
             if (first) {
                 dragY.current = itemYPos - curScrollTop;
             } else {
                 dragY.current += deltaY;
             }
             const curYPos = curScrollTop + dragY.current;
-            const newIndex = order.current.findIndex(
+            const newIndex = order.findIndex(
                 o => o.yPos + o.height / 2 > curYPos,
             );
             const curRow = clamp(
-                newIndex >= 0 ? newIndex : order.current.length,
+                newIndex >= 0 ? newIndex : order.length,
                 0,
-                order.current.length - 1,
+                order.length - 1,
             );
-            const newOrder = move(order.current, curIndex, curRow);
+            const newOrder = move(order, curIndex, curRow);
             if (!dragging) {
                 setSprings(fn(newOrder, dragging, originalIndex, curYPos, true));
             }
@@ -128,7 +125,7 @@ function App() {
                 /* #endregion */
             } else {
                 dragY.current = 0;
-                order.current = updateOrder(newOrder);
+                setOrder(updateOrder(newOrder));
                 scroll.current = 0;
             }
         },
@@ -143,7 +140,7 @@ function App() {
             <div
                 className="list"
                 style={{
-                    height: order.current.reduce(
+                    height: order.reduce(
                         (result, next) => result + next.height,
                         0,
                     ),
