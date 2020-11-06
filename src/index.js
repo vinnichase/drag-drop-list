@@ -55,16 +55,17 @@ const fn = (order, dragging, originalIndex, dragY, immediate = false) => index =
     };
 
 function App() {
-    const [scroll, setScroll] = useState(0);
     const [isDragging, setIsDragging] = useState(false);
     const [, vh] = useWindowDimensions();
+    const scroll = useRef(0);
     const container = useRef(null);
 
+    console.log('RERENDER');
+
     useInterval(() => {
-        if (scroll !== 0) {
-            const scrollStep = scroll * 10;
+        if (scroll.current !== 0) {
+            const scrollStep = scroll.current * 10;
             container.current.scrollTop += scrollStep;
-            // dragY.current += scrollStep;
         }
     }, 10);
 
@@ -99,7 +100,6 @@ function App() {
             const newIndex = order.current.findIndex(
                 o => o.yPos + o.height / 2 > curYPos,
             );
-            console.log(newIndex);
             const curRow = clamp(
                 newIndex >= 0 ? newIndex : order.current.length,
                 0,
@@ -117,19 +117,19 @@ function App() {
                 const topBounds = boundsSize;
                 const bottomBounds = vh - boundsSize;
                 if (vy < topBounds) {
-                    setScroll((vy - topBounds) / boundsSize);
+                    scroll.current = (vy - topBounds) / boundsSize;
                 }
                 if (scroll !== 0 && vy >= topBounds && vy <= bottomBounds) {
-                    setScroll(0);
+                    scroll.current = 0;
                 }
                 if (vy > bottomBounds) {
-                    setScroll((vy - bottomBounds) / boundsSize);
+                    scroll.current = (vy - bottomBounds) / boundsSize;
                 }
                 /* #endregion */
             } else {
                 dragY.current = 0;
                 order.current = updateOrder(newOrder);
-                setScroll(0);
+                scroll.current = 0;
             }
         },
     );
