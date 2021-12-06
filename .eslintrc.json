@@ -101,6 +101,9 @@
         "no-unused-expressions": [
             0
         ],
+        "no-unused-vars": [
+            "warn"
+        ],
         "react/jsx-indent": [
             "error",
             4
