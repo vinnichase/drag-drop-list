@@ -8,22 +8,6 @@ body,
   margin: 0;
   height: 100%;
   width: 100%;
-  overflow: hidden;
-  user-select: none !important;
-}
-
-.list-container {
-  margin: 0;
-  display: flex;
-  flex: 1;
-  overflow-y: scroll;
-  user-select: none !important;
-  -webkit-user-select: none !important;
-}
-
-.list {
-  font-family: sans-serif;
-  overflow-x: hidden;
-  user-select: none !important;
-  -webkit-user-select: none !important;
+  /* overflow: hidden;
+  user-select: none !important; */
 }

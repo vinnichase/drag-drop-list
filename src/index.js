@@ -9,7 +9,7 @@ import { DragList } from './DragList';
 const ListItem = () => {
     const [content, setContent] = useState([1, 1, 1, 1, 1, 1]);
     return (
-        <>
+        <div style={{ paddingBottom: 10, borderBottom: '1px solid #333', width: '100%' }}>
             <button onClick={() => setContent(R.append(1))}>+</button>
             <button onClick={() => setContent(R.dropLast(1))}>-</button>
             <div>
@@ -22,12 +22,12 @@ const ListItem = () => {
                     ),
                 )}
             </div>
-        </>
+        </div>
     );
 };
 
 const App = () => {
-    const [content, setContent] = useState(R.range(0, 30));
+    const [content, setContent] = useState(R.range(0, 50));
     return (
         <>
             <div
