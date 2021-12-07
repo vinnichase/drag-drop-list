@@ -2,15 +2,18 @@
 /* eslint-disable no-param-reassign */
 import * as R from 'ramda';
 import React, {
-    useCallback, useEffect, useMemo, useRef,
+    memo, useCallback, useEffect, useMemo, useRef,
 } from 'react';
 import ResizeObserver from 'rc-resize-observer';
 import './styles.css';
 import { useSprings, animated, to } from 'react-spring';
 
 const reduceIndexed = R.addIndex(R.reduce);
+const depDeepEquals = (prevProps, nextProps) => prevProps.deps && nextProps.deps
+    ? R.equals(prevProps.deps, nextProps.deps)
+    : false;
 
-const DragItem = ({
+const _DragItem = ({
     children,
     updateHeight,
     springProps: { y } = {},
@@ -43,17 +46,19 @@ const DragItem = ({
         </ResizeObserver>
     );
 };
+const DragItem = memo(_DragItem, depDeepEquals);
 
 export const useChildrenHeights = (children, onHeightChange) => {
     const heightsMap = useRef({});
     const heightsArr = useRef([]);
     const heightSum = useRef(0);
+    const _children = useRef([]);
 
     const fnSprings = index => ({
         y: R.pathOr(heightSum.current, [index, 'yPos'])(heightsArr.current),
     });
 
-    const composeHeights = useCallback(_children => {
+    const composeHeights = useCallback(() => {
         heightsArr.current = [];
         heightSum.current = reduceIndexed((yPos, child, index) => {
             const heightObj = R.compose(
@@ -64,21 +69,23 @@ export const useChildrenHeights = (children, onHeightChange) => {
             heightsMap.current = R.assoc(child.key, heightObj, heightsMap.current);
             heightsArr.current = R.assocPath([index], heightObj, heightsArr.current);
             return yPos + heightObj.height;
-        }, 0)(_children);
+        }, 0)(_children.current);
         onHeightChange && onHeightChange(heightSum.current);
     }, [onHeightChange]);
 
     const [springs, setSprings] = useSprings(React.Children.count(children), fnSprings);
     useEffect(() => {
-        composeHeights(children);
+        _children.current = children;
+        composeHeights();
         setSprings(fnSprings);
     }, [composeHeights, setSprings, children]);
 
     const updateHeight = useCallback((key, height) => {
         heightsMap.current = R.assoc(key, { height }, heightsMap.current);
-        composeHeights(children);
+        composeHeights();
+        console.log(heightsArr.current);
         setSprings(fnSprings);
-    }, [composeHeights, setSprings, children]);
+    }, [composeHeights, setSprings]);
 
     return {
         springs,
@@ -119,6 +126,7 @@ export const DragList = ({ children }) => {
                 {springs.map(({ y }, i) => (
                     <DragItem
                         key={children[i].key}
+                        deps={{ key: children[i].key }}
                         updateHeight={updateHeight}
                         springProps={{ y }}
                     >
