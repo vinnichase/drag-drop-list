@@ -2,8 +2,8 @@
 /* eslint-disable react/jsx-props-no-spreading */
 import * as R from 'ramda';
 import React, { useState, useRef } from 'react';
-import { animated, useSprings, to } from 'react-spring';
-import { useDrag } from 'react-use-gesture';
+import { animated, useSprings, to } from '@react-spring/web';
+import { useDrag } from '@use-gesture/react';
 import clamp from 'lodash-es/clamp';
 import move from 'lodash-move';
 import data from './data';
