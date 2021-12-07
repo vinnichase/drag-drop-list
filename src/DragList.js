@@ -65,6 +65,8 @@ export const useChildrenHeights = (children, onHeightChange) => {
 
     const _fnSprings = index => ({
         y: R.pathOr(heightSum.current, [index, 'yPos'])(heightsArr.current),
+        position: 'absolute',
+        zIndex: '0',
     });
 
     const composeHeights = useCallback(() => {
@@ -173,7 +175,11 @@ export const DragList = ({ children }) => {
                 }, i) => (
                     <DragItem
                         key={children[i].key}
-                        deps={{ key: children[i].key }}
+                        deps={{
+                            key: children[i].key,
+                            position,
+                            zIndex,
+                        }}
                         updateHeight={updateHeight}
                         springProps={{
                             y,
