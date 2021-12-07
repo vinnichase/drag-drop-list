@@ -30,22 +30,22 @@ const DragItem = ({
     }, [updateHeight, index]);
 
     return (
-        <animated.div
-            style={{
-                position: 'absolute',
-                display: 'flex',
-                flex: 1,
-                transform: to(
-                    [y],
-                    yp => `translate3d(0,${yp}px,0)`,
-                ),
-            }}
-            ref={item}
-        >
-            <ResizeObserver onResize={_updateHeight}>
+        <ResizeObserver onResize={_updateHeight}>
+            <animated.div
+                style={{
+                    position: 'absolute',
+                    display: 'flex',
+                    flex: 1,
+                    transform: to(
+                        [y],
+                        yp => `translate3d(0,${yp}px,0)`,
+                    ),
+                }}
+                ref={item}
+            >
                 {children}
-            </ResizeObserver>
-        </animated.div>
+            </animated.div>
+        </ResizeObserver>
     );
 };
 
@@ -86,8 +86,6 @@ export const DragList = ({ children }) => {
                 display: 'flex',
                 flex: 1,
                 overflowY: 'scroll',
-                // userSelect: 'none',
-                // WebkitUserSelect: 'none',
             }}
         >
             <div
@@ -98,9 +96,6 @@ export const DragList = ({ children }) => {
                     display: 'flex',
                     flex: 1,
                     overflowX: 'hidden',
-                    // userSelect: 'none',
-                    // WebkitUserSelect: 'none',
-                    // height: 1000,
                 }}
             >
                 {springs.map(({ y }, i) => (
