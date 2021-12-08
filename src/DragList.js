@@ -19,33 +19,67 @@ const _DragItem = ({
     updateHeight,
     springProps: {
         y,
-        position,
-        zIndex,
     } = {},
-    dragProps = {},
+    onDrag = (dragY = 0) => dragY,
 }) => {
     const child = useMemo(() => React.Children.only(children), [children]);
+    const itemNode = useRef(null);
     const item = useCallback(node => {
         if (node && node.style && node.parentNode && node.parentNode.offsetWidth) {
+            itemNode.current = node;
             node.style.width = `${node.parentNode.offsetWidth}px`;
         }
     }, []);
     const _updateHeight = useCallback(({ height }) => {
         updateHeight(child.key, height);
     }, [updateHeight, child]);
+
+    const originalY = useRef(0);
+    const dragY = useRef(0);
+    const deltaYCombined = useRef(0);
+    const resetY = () => {
+        originalY.current = 0;
+        dragY.current = 0;
+        deltaYCombined.current = 0;
+    };
+    const bindDrag = useDrag(({
+        delta: [, deltaY],
+        first,
+        last,
+    }) => {
+        if (first) {
+            originalY.current = y.goal;
+            const { top } = itemNode.current.getBoundingClientRect();
+            itemNode.current.style.position = 'fixed';
+            itemNode.current.style.zIndex = '1';
+            const { offsetTop } = itemNode.current;
+            dragY.current = top - offsetTop;
+            onDrag(dragY.current);
+        } else if (last) {
+            itemNode.current.style.position = 'absolute';
+            itemNode.current.style.zIndex = '0';
+            onDrag(originalY.current + deltaYCombined.current);
+            onDrag(0);
+            resetY();
+        } else {
+            deltaYCombined.current += deltaY;
+            dragY.current += deltaY;
+            onDrag(dragY.current);
+        }
+    });
     return (
         <ResizeObserver onResize={_updateHeight}>
             <animated.div
                 // eslint-disable-next-line react/jsx-props-no-spreading
-                {...dragProps}
+                {...bindDrag()}
                 style={{
-                    position: position || 'absolute',
-                    zIndex: zIndex || '0',
+                    position: 'absolute',
+                    zIndex: '0',
                     display: 'flex',
                     flex: 1,
                     transform: to(
                         [y],
-                        yp => `translate3d(0,${yp}px,0)`,
+                        yp => `translateY(${yp}px)`,
                     ),
                 }}
                 ref={item}
@@ -65,7 +99,7 @@ export const useChildrenHeights = (children, onHeightChange) => {
 
     const _fnSprings = index => ({
         y: R.pathOr(heightSum.current, [index, 'yPos'])(heightsArr.current),
-        position: 'absolute',
+        // position: 'absolute',
         zIndex: '0',
     });
 
@@ -119,51 +153,17 @@ export const DragList = ({ children }) => {
         getItemYPos,
     } = useChildrenHeights(children, setListHeight);
 
-    const createFnSprings = (dragIndex = false, dragY = 0) => index => index === dragIndex
+    const createFnSprings = (dragY = 0, dragIndex = false) => index => dragY
+        && index === dragIndex
         ? {
             y: dragY,
-            position: 'fixed',
             zIndex: '1',
             immediate: n => ['fixed', 'y', 'zIndex'].includes(n),
         }
         : {
             y: getItemYPos(index),
-            position: 'absolute',
             zIndex: '0',
         };
-
-    const dragY = useRef(0);
-    const bindDrag = useDrag(({
-        args: [dragIndex],
-        dragging,
-        delta: [, deltaY],
-        // xy: [, vy],
-        first,
-    }) => {
-        // console.log(dragIndex);
-        // console.log(deltaY);
-        // console.log(vy);
-
-        container.current.style.touchAction = 'none';
-
-        // console.log(container.current.getBoundingClientRect().top);
-        // console.log(container.current.ownerDocument.defaultView.pageYOffset);
-        // console.log(container.current.scrollTop);
-        // console.log(getItemYPos(dragIndex));
-        // console.log(vy);
-
-        const curScrollTop = container.current.scrollTop;
-        const itemYPos = getItemYPos(dragIndex);
-        if (first) {
-            dragY.current = itemYPos - curScrollTop;
-        } else {
-            dragY.current += deltaY;
-        }
-        console.log(dragY.current);
-        if (dragging) {
-            setSprings(createFnSprings(dragIndex, dragY.current));
-        }
-    });
 
     return (
         <div
@@ -201,7 +201,7 @@ export const DragList = ({ children }) => {
                             position,
                             zIndex,
                         }}
-                        dragProps={bindDrag(i)}
+                        onDrag={dragY => setSprings(createFnSprings(dragY, i))}
                     >
                         {children[i]}
                     </DragItem>
