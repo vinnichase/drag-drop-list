@@ -55,11 +55,36 @@ const useChildrenHeights = (children, onHeightChange) => {
         springsApi.start(_fnSprings);
     }, [composeHeights, springsApi]);
 
+    const heightOffset = useRef(0);
+    const fromIndex = useRef(0);
+    const toIndex = useRef(0);
+
+    const getItemYPos = index => {
+        const yPos = R.pathOr(0, [index, 'yPos'], heightsArr.current);
+        console.log(fromIndex.current);
+        console.log(toIndex.current);
+        console.log(heightOffset.current);
+        if (heightOffset.current > 0 && fromIndex.current < index && index < toIndex.current) {
+            return yPos + heightOffset.current;
+        }
+        return yPos;
+    };
     return {
+        heightsArr,
         springs,
         setSprings: fnSprings => springsApi.start(fnSprings),
         updateHeight,
-        getItemYPos: index => R.pathOr(0, [index, 'yPos'], heightsArr.current),
+        getItemYPos,
+        setDragDistance: (currentIndex, newIndex) => {
+            fromIndex.current = R.min(currentIndex, newIndex);
+            toIndex.current = R.max(currentIndex, newIndex);
+            const height = R.pathOr(0, [currentIndex, 'height'], heightsArr.current);
+            heightOffset.current = currentIndex < newIndex
+                ? -height
+                : currentIndex > newIndex
+                    ? height
+                    : 0;
+        },
     };
 };
 
@@ -214,6 +239,8 @@ export const DragList = ({ children }) => {
         if (list.current) list.current.style.height = `${height}px`;
     }, []);
     const {
+        heightsArr,
+        setDragDistance,
         springs,
         setSprings,
         updateHeight,
@@ -238,6 +265,11 @@ export const DragList = ({ children }) => {
             shadow: 0,
             zIndex: '0',
         };
+
+    const moveByDrag = (dragY, currentIndex) => {
+        const newIndex = heightsArr.current.findIndex(o => o.yPos + o.height / 2 > dragY);
+        setDragDistance(currentIndex, newIndex);
+    };
 
     return (
         <div
@@ -277,7 +309,8 @@ export const DragList = ({ children }) => {
                             zIndex,
                             shadow,
                         }}
-                        onDrag={dragY => {
+                        onDrag={async dragY => {
+                            moveByDrag(dragY - scrollDrag.current, i);
                             setSprings(createFnSprings(dragY, i));
                         }}
                         onDragEnd={dragY => {
