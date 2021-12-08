@@ -19,6 +19,8 @@ const _DragItem = ({
     updateHeight,
     springProps: {
         y,
+        zIndex,
+        shadow,
     } = {},
     onDrag = (dragY = 0) => dragY,
 }) => {
@@ -57,7 +59,6 @@ const _DragItem = ({
             onDrag(dragY.current);
         } else if (last) {
             itemNode.current.style.position = 'absolute';
-            itemNode.current.style.zIndex = '0';
             onDrag(originalY.current + deltaYCombined.current);
             onDrag(0);
             resetY();
@@ -73,10 +74,13 @@ const _DragItem = ({
                 // eslint-disable-next-line react/jsx-props-no-spreading
                 {...bindDrag()}
                 style={{
-                    position: 'absolute',
-                    zIndex: '0',
-                    display: 'flex',
                     flex: 1,
+                    position: 'absolute',
+                    zIndex: zIndex || '0',
+                    display: 'flex',
+                    boxShadow: shadow.to(
+                        s => `rgba(0, 0, 0, 0.15) 0px ${s}px ${2 * s}px 0px`,
+                    ),
                     transform: to(
                         [y],
                         yp => `translateY(${yp}px)`,
@@ -99,8 +103,8 @@ export const useChildrenHeights = (children, onHeightChange) => {
 
     const _fnSprings = index => ({
         y: R.pathOr(heightSum.current, [index, 'yPos'])(heightsArr.current),
-        // position: 'absolute',
         zIndex: '0',
+        shadow: 0,
     });
 
     const composeHeights = useCallback(() => {
@@ -157,11 +161,13 @@ export const DragList = ({ children }) => {
         && index === dragIndex
         ? {
             y: dragY,
+            shadow: 15,
             zIndex: '1',
             immediate: n => ['fixed', 'y', 'zIndex'].includes(n),
         }
         : {
             y: getItemYPos(index),
+            shadow: 0,
             zIndex: '0',
         };
 
@@ -187,8 +193,8 @@ export const DragList = ({ children }) => {
             >
                 {springs.map(({
                     y,
-                    position,
                     zIndex,
+                    shadow,
                 }, i) => (
                     <DragItem
                         key={children[i].key}
@@ -198,8 +204,8 @@ export const DragList = ({ children }) => {
                         updateHeight={updateHeight}
                         springProps={{
                             y,
-                            position,
                             zIndex,
+                            shadow,
                         }}
                         onDrag={dragY => setSprings(createFnSprings(dragY, i))}
                     >
