@@ -56,34 +56,38 @@ const useChildrenHeights = (children, onHeightChange) => {
     }, [composeHeights, springsApi]);
 
     const heightOffset = useRef(0);
-    const fromIndex = useRef(0);
-    const toIndex = useRef(0);
+    const currentIndex = useRef(0);
+    const newIndex = useRef(0);
+    const newYPos = useRef(0);
 
     const getItemYPos = index => {
         const yPos = R.pathOr(0, [index, 'yPos'], heightsArr.current);
-        console.log(fromIndex.current);
-        console.log(toIndex.current);
-        console.log(heightOffset.current);
-        if (heightOffset.current > 0 && fromIndex.current < index && index < toIndex.current) {
+        const fromIndex = R.min(currentIndex.current, newIndex.current);
+        const toIndex = R.max(currentIndex.current, newIndex.current);
+        if (index === currentIndex.current) {
+            return newYPos.current;
+        }
+        if (heightOffset.current !== 0 && fromIndex <= index && index <= toIndex) {
             return yPos + heightOffset.current;
         }
         return yPos;
     };
     return {
-        heightsArr,
         springs,
         setSprings: fnSprings => springsApi.start(fnSprings),
         updateHeight,
         getItemYPos,
-        setDragDistance: (currentIndex, newIndex) => {
-            fromIndex.current = R.min(currentIndex, newIndex);
-            toIndex.current = R.max(currentIndex, newIndex);
-            const height = R.pathOr(0, [currentIndex, 'height'], heightsArr.current);
-            heightOffset.current = currentIndex < newIndex
+        setDragDistance: (dragY, _currentIndex) => {
+            const _newIndex = heightsArr.current.findIndex(o => o.yPos + o.height / 2 > dragY);
+            const height = R.pathOr(0, [_currentIndex, 'height'], heightsArr.current);
+            newYPos.current = R.pathOr(0, [_newIndex, 'yPos'], heightsArr.current);
+            heightOffset.current = _currentIndex < _newIndex
                 ? -height
-                : currentIndex > newIndex
+                : _currentIndex > _newIndex
                     ? height
                     : 0;
+            newIndex.current = _newIndex < 0 ? heightsArr.current.length + _newIndex : _newIndex;
+            currentIndex.current = _currentIndex;
         },
     };
 };
@@ -91,8 +95,8 @@ const useChildrenHeights = (children, onHeightChange) => {
 const useItemDrag = ({
     itemNode,
     getOriginalY = () => 0,
-    onDrag = (dragY = 0) => dragY,
-    onDragEnd = (dragY = 0) => dragY,
+    onDrag = ({ absoluteY = 0, relativeY = 0 }) => ({ absoluteY, relativeY }),
+    onDragEnd = ({ absoluteY = 0, relativeY = 0 }) => ({ absoluteY, relativeY }),
 }) => {
     const originalY = useRef(0);
     const dragY = useRef(0);
@@ -102,6 +106,10 @@ const useItemDrag = ({
         dragY.current = 0;
         deltaYCombined.current = 0;
     };
+    const dragEvent = () => ({
+        absoluteY: dragY.current,
+        relativeY: originalY.current + deltaYCombined.current,
+    });
     const bindDrag = useDrag(({
         delta: [, deltaY],
         first,
@@ -114,15 +122,15 @@ const useItemDrag = ({
             itemNode.current.style.zIndex = '1';
             const { offsetTop } = itemNode.current;
             dragY.current = top - offsetTop;
-            onDrag(dragY.current);
+            onDrag(dragEvent());
         } else if (last) {
             itemNode.current.style.position = 'absolute';
-            onDragEnd(originalY.current + deltaYCombined.current);
+            onDragEnd(dragEvent());
             resetY();
         } else {
             deltaYCombined.current += deltaY;
             dragY.current += deltaY;
-            onDrag(dragY.current);
+            onDrag(dragEvent());
         }
     });
 
@@ -180,8 +188,8 @@ const _DragItem = ({
         zIndex,
         shadow,
     } = {},
-    onDrag = (dragY = 0) => dragY,
-    onDragEnd = (dragY = 0) => dragY,
+    onDrag = ({ absoluteY = 0, relativeY = 0 }) => ({ absoluteY, relativeY }),
+    onDragEnd = ({ absoluteY = 0, relativeY = 0 }) => ({ absoluteY, relativeY }),
 }) => {
     const child = useMemo(() => React.Children.only(children), [children]);
     const itemNode = useRef(null);
@@ -239,7 +247,6 @@ export const DragList = ({ children }) => {
         if (list.current) list.current.style.height = `${height}px`;
     }, []);
     const {
-        heightsArr,
         setDragDistance,
         springs,
         setSprings,
@@ -267,8 +274,7 @@ export const DragList = ({ children }) => {
         };
 
     const moveByDrag = (dragY, currentIndex) => {
-        const newIndex = heightsArr.current.findIndex(o => o.yPos + o.height / 2 > dragY);
-        setDragDistance(currentIndex, newIndex);
+        setDragDistance(dragY, currentIndex);
     };
 
     return (
@@ -309,12 +315,13 @@ export const DragList = ({ children }) => {
                             zIndex,
                             shadow,
                         }}
-                        onDrag={async dragY => {
-                            moveByDrag(dragY - scrollDrag.current, i);
-                            setSprings(createFnSprings(dragY, i));
+                        onDrag={async ({ absoluteY, relativeY }) => {
+                            moveByDrag(relativeY - scrollDrag.current, i);
+                            setSprings(createFnSprings(absoluteY, i));
                         }}
-                        onDragEnd={dragY => {
-                            setSprings(createFnSprings(dragY - scrollDrag.current, i));
+                        onDragEnd={({ relativeY }) => {
+                            moveByDrag(relativeY - scrollDrag.current, i);
+                            setSprings(createFnSprings(relativeY - scrollDrag.current, i));
                             setSprings(createFnSprings(0, i));
                         }}
                     >
