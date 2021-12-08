@@ -15,88 +15,6 @@ const depDeepEquals = (prevProps, nextProps) => prevProps.deps && nextProps.deps
     ? R.equals(prevProps.deps, nextProps.deps)
     : false;
 
-const _DragItem = ({
-    children,
-    updateHeight,
-    springProps: {
-        y,
-        zIndex,
-        shadow,
-    } = {},
-    onDrag = (dragY = 0) => dragY,
-    onDragEnd = (dragY = 0) => dragY,
-}) => {
-    const child = useMemo(() => React.Children.only(children), [children]);
-    const itemNode = useRef(null);
-    const item = useCallback(node => {
-        if (node && node.style && node.parentNode && node.parentNode.offsetWidth) {
-            itemNode.current = node;
-            node.style.width = `${node.parentNode.offsetWidth}px`;
-        }
-    }, []);
-    const _updateHeight = useCallback(({ height }) => {
-        updateHeight(child.key, height);
-    }, [updateHeight, child]);
-
-    const originalY = useRef(0);
-    const dragY = useRef(0);
-    const deltaYCombined = useRef(0);
-    const resetY = () => {
-        originalY.current = 0;
-        dragY.current = 0;
-        deltaYCombined.current = 0;
-    };
-    const bindDrag = useDrag(({
-        delta: [, deltaY],
-        first,
-        last,
-    }) => {
-        if (first) {
-            originalY.current = y.goal;
-            const { top } = itemNode.current.getBoundingClientRect();
-            itemNode.current.style.position = 'fixed';
-            itemNode.current.style.zIndex = '1';
-            const { offsetTop } = itemNode.current;
-            dragY.current = top - offsetTop;
-            onDrag(dragY.current);
-        } else if (last) {
-            itemNode.current.style.position = 'absolute';
-            onDragEnd(originalY.current + deltaYCombined.current);
-            // onDrag(0);
-            resetY();
-        } else {
-            deltaYCombined.current += deltaY;
-            dragY.current += deltaY;
-            onDrag(dragY.current);
-        }
-    });
-    return (
-        <ResizeObserver onResize={_updateHeight}>
-            <animated.div
-                // eslint-disable-next-line react/jsx-props-no-spreading
-                {...bindDrag()}
-                style={{
-                    flex: 1,
-                    position: 'absolute',
-                    zIndex: zIndex || '0',
-                    display: 'flex',
-                    boxShadow: shadow.to(
-                        s => `rgba(0, 0, 0, 0.15) 0px ${s}px ${2 * s}px 0px`,
-                    ),
-                    transform: to(
-                        [y],
-                        yp => `translateY(${yp}px)`,
-                    ),
-                }}
-                ref={item}
-            >
-                {child}
-            </animated.div>
-        </ResizeObserver>
-    );
-};
-const DragItem = memo(_DragItem, depDeepEquals);
-
 const useChildrenHeights = (children, onHeightChange) => {
     const heightsMap = useRef({});
     const heightsArr = useRef([]);
@@ -145,6 +63,49 @@ const useChildrenHeights = (children, onHeightChange) => {
     };
 };
 
+const useItemDrag = ({
+    itemNode,
+    getOriginalY = () => 0,
+    onDrag = (dragY = 0) => dragY,
+    onDragEnd = (dragY = 0) => dragY,
+}) => {
+    const originalY = useRef(0);
+    const dragY = useRef(0);
+    const deltaYCombined = useRef(0);
+    const resetY = () => {
+        originalY.current = 0;
+        dragY.current = 0;
+        deltaYCombined.current = 0;
+    };
+    const bindDrag = useDrag(({
+        delta: [, deltaY],
+        first,
+        last,
+    }) => {
+        if (first) {
+            originalY.current = getOriginalY();
+            const { top } = itemNode.current.getBoundingClientRect();
+            itemNode.current.style.position = 'fixed';
+            itemNode.current.style.zIndex = '1';
+            const { offsetTop } = itemNode.current;
+            dragY.current = top - offsetTop;
+            onDrag(dragY.current);
+        } else if (last) {
+            itemNode.current.style.position = 'absolute';
+            onDragEnd(originalY.current + deltaYCombined.current);
+            resetY();
+        } else {
+            deltaYCombined.current += deltaY;
+            dragY.current += deltaY;
+            onDrag(dragY.current);
+        }
+    });
+
+    return {
+        bindDrag: bindDrag(),
+    };
+};
+
 const useScrollDrag = containerRef => {
     const scroll = useRef(0);
     const scrollDrag = useRef(0);
@@ -158,14 +119,11 @@ const useScrollDrag = containerRef => {
         }
     }, 10);
     const bindDrag = useDrag(({
-        // delta: [, deltaY],
         xy: [, y],
-        // first,
         last,
     }) => {
         const { top, height } = containerRef.current.getBoundingClientRect();
         const yContainer = y - top;
-        /* #region drag scroll  */
         const boundsSize = 0.15 * height;
         const topBounds = boundsSize;
         const bottomBounds = height - boundsSize;
@@ -182,13 +140,71 @@ const useScrollDrag = containerRef => {
             scroll.current = 0;
             scrollDrag.current = 0;
         }
-        /* #endregion */
     });
     return {
         bindDrag: bindDrag(),
         scrollDrag,
     };
 };
+
+const _DragItem = ({
+    children,
+    updateHeight,
+    springProps: {
+        y,
+        zIndex,
+        shadow,
+    } = {},
+    onDrag = (dragY = 0) => dragY,
+    onDragEnd = (dragY = 0) => dragY,
+}) => {
+    const child = useMemo(() => React.Children.only(children), [children]);
+    const itemNode = useRef(null);
+    const item = useCallback(node => {
+        if (node && node.style && node.parentNode && node.parentNode.offsetWidth) {
+            itemNode.current = node;
+            node.style.width = `${node.parentNode.offsetWidth}px`;
+        }
+    }, []);
+    const _updateHeight = useCallback(({ height }) => {
+        updateHeight(child.key, height);
+    }, [updateHeight, child]);
+
+    const {
+        bindDrag,
+    } = useItemDrag({
+        itemNode,
+        getOriginalY: () => y.goal,
+        onDrag,
+        onDragEnd,
+    });
+
+    return (
+        <ResizeObserver onResize={_updateHeight}>
+            <animated.div
+                // eslint-disable-next-line react/jsx-props-no-spreading
+                {...bindDrag}
+                style={{
+                    flex: 1,
+                    position: 'absolute',
+                    zIndex: zIndex || '0',
+                    display: 'flex',
+                    boxShadow: shadow.to(
+                        s => `rgba(0, 0, 0, 0.15) 0px ${s}px ${2 * s}px 0px`,
+                    ),
+                    transform: to(
+                        [y],
+                        yp => `translateY(${yp}px)`,
+                    ),
+                }}
+                ref={item}
+            >
+                {child}
+            </animated.div>
+        </ResizeObserver>
+    );
+};
+const DragItem = memo(_DragItem, depDeepEquals);
 
 export const DragList = ({ children }) => {
     console.log('render');
