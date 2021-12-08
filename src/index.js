@@ -10,7 +10,11 @@ const ListItem = () => {
     const [content, setContent] = useState([1, 1, 1, 1, 1, 1]);
     return (
         <div style={{
-            background: '#fff', paddingBottom: 10, borderBottom: '1px solid #bbb', width: '100%',
+            // boxShadow: 'rgba(0, 0, 0, 0.15) 0px 15px 30px 0px',
+            background: '#fff',
+            paddingBottom: 10,
+            borderBottom: '1px solid #bbb',
+            width: '100%',
         }}
         >
             <button onClick={() => setContent(R.append(1))}>+</button>
