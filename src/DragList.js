@@ -98,27 +98,25 @@ export const useChildrenHeights = (children, onHeightChange) => {
     }, [composeHeights, springsApi]);
 
     return {
-        heightsArr,
         springs,
-        setSprings: fnSprings => springsApi.start(index => ({
-            ..._fnSprings(index),
-            ...fnSprings(index),
-        })),
+        setSprings: fnSprings => springsApi.start(fnSprings),
         updateHeight,
+        getItemYPos: index => R.pathOr(0, [index, 'yPos'], heightsArr.current),
     };
 };
 
 export const DragList = ({ children }) => {
     console.log('render');
+    const container = useRef(null);
     const list = useRef(null);
     const setListHeight = useCallback(height => {
         if (list.current) list.current.style.height = `${height}px`;
     }, []);
     const {
-        heightsArr,
         springs,
         setSprings,
         updateHeight,
+        getItemYPos,
     } = useChildrenHeights(children, setListHeight);
 
     const createFnSprings = (dragIndex = false, dragY = 0) => index => index === dragIndex
@@ -129,28 +127,47 @@ export const DragList = ({ children }) => {
             immediate: n => ['fixed', 'y', 'zIndex'].includes(n),
         }
         : {
-            y: R.pathOr(0, [index, 'yPos'], heightsArr.current),
-            // position: 'absolute',
-            // zIndex: '0',
+            y: getItemYPos(index),
+            position: 'absolute',
+            zIndex: '0',
         };
 
+    const dragY = useRef(0);
     const bindDrag = useDrag(({
         args: [dragIndex],
         dragging,
-        // delta: [, deltaY],
-        xy: [, vy],
-        // first,
+        delta: [, deltaY],
+        // xy: [, vy],
+        first,
     }) => {
         // console.log(dragIndex);
         // console.log(deltaY);
         // console.log(vy);
+
+        container.current.style.touchAction = 'none';
+
+        // console.log(container.current.getBoundingClientRect().top);
+        // console.log(container.current.ownerDocument.defaultView.pageYOffset);
+        // console.log(container.current.scrollTop);
+        // console.log(getItemYPos(dragIndex));
+        // console.log(vy);
+
+        const curScrollTop = container.current.scrollTop;
+        const itemYPos = getItemYPos(dragIndex);
+        if (first) {
+            dragY.current = itemYPos - curScrollTop;
+        } else {
+            dragY.current += deltaY;
+        }
+        console.log(dragY.current);
         if (dragging) {
-            setSprings(createFnSprings(dragIndex, vy));
+            setSprings(createFnSprings(dragIndex, dragY.current));
         }
     });
 
     return (
         <div
+            ref={container}
             style={{
                 margin: 0,
                 display: 'flex',
@@ -177,8 +194,6 @@ export const DragList = ({ children }) => {
                         key={children[i].key}
                         deps={{
                             key: children[i].key,
-                            position,
-                            zIndex,
                         }}
                         updateHeight={updateHeight}
                         springProps={{
