@@ -8,6 +8,7 @@ import ResizeObserver from 'rc-resize-observer';
 import './styles.css';
 import { useSprings, animated, to } from '@react-spring/web';
 import { useDrag } from '@use-gesture/react';
+import useInterval from './useInterval';
 
 const reduceIndexed = R.addIndex(R.reduce);
 const depDeepEquals = (prevProps, nextProps) => prevProps.deps && nextProps.deps
@@ -23,6 +24,7 @@ const _DragItem = ({
         shadow,
     } = {},
     onDrag = (dragY = 0) => dragY,
+    onDragEnd = (dragY = 0) => dragY,
 }) => {
     const child = useMemo(() => React.Children.only(children), [children]);
     const itemNode = useRef(null);
@@ -59,8 +61,8 @@ const _DragItem = ({
             onDrag(dragY.current);
         } else if (last) {
             itemNode.current.style.position = 'absolute';
-            onDrag(originalY.current + deltaYCombined.current);
-            onDrag(0);
+            onDragEnd(originalY.current + deltaYCombined.current);
+            // onDrag(0);
             resetY();
         } else {
             deltaYCombined.current += deltaY;
@@ -95,7 +97,7 @@ const _DragItem = ({
 };
 const DragItem = memo(_DragItem, depDeepEquals);
 
-export const useChildrenHeights = (children, onHeightChange) => {
+const useChildrenHeights = (children, onHeightChange) => {
     const heightsMap = useRef({});
     const heightsArr = useRef([]);
     const heightSum = useRef(0);
@@ -143,6 +145,51 @@ export const useChildrenHeights = (children, onHeightChange) => {
     };
 };
 
+const useScrollDrag = containerRef => {
+    const scroll = useRef(0);
+    const scrollDrag = useRef(0);
+    useInterval(() => {
+        if (scroll.current !== 0) {
+            const scrollStep = scroll.current * 10;
+            const scrollTopBefore = containerRef.current.scrollTop;
+            containerRef.current.scrollTop += scrollStep;
+            const scrollTopAfter = containerRef.current.scrollTop;
+            scrollDrag.current += scrollTopBefore - scrollTopAfter;
+        }
+    }, 10);
+    const bindDrag = useDrag(({
+        // delta: [, deltaY],
+        xy: [, y],
+        // first,
+        last,
+    }) => {
+        const { top, height } = containerRef.current.getBoundingClientRect();
+        const yContainer = y - top;
+        /* #region drag scroll  */
+        const boundsSize = 0.15 * height;
+        const topBounds = boundsSize;
+        const bottomBounds = height - boundsSize;
+        if (yContainer < topBounds) {
+            scroll.current = (yContainer - topBounds) / boundsSize;
+        }
+        if (scroll.current !== 0 && yContainer >= topBounds && yContainer <= bottomBounds) {
+            scroll.current = 0;
+        }
+        if (yContainer > bottomBounds) {
+            scroll.current = (yContainer - bottomBounds) / boundsSize;
+        }
+        if (last) {
+            scroll.current = 0;
+            scrollDrag.current = 0;
+        }
+        /* #endregion */
+    });
+    return {
+        bindDrag: bindDrag(),
+        scrollDrag,
+    };
+};
+
 export const DragList = ({ children }) => {
     console.log('render');
     const container = useRef(null);
@@ -156,6 +203,11 @@ export const DragList = ({ children }) => {
         updateHeight,
         getItemYPos,
     } = useChildrenHeights(children, setListHeight);
+
+    const {
+        bindDrag,
+        scrollDrag,
+    } = useScrollDrag(container);
 
     const createFnSprings = (dragY = 0, dragIndex = false) => index => dragY
         && index === dragIndex
@@ -173,6 +225,8 @@ export const DragList = ({ children }) => {
 
     return (
         <div
+            // eslint-disable-next-line react/jsx-props-no-spreading
+            {...bindDrag}
             ref={container}
             style={{
                 margin: 0,
@@ -207,7 +261,13 @@ export const DragList = ({ children }) => {
                             zIndex,
                             shadow,
                         }}
-                        onDrag={dragY => setSprings(createFnSprings(dragY, i))}
+                        onDrag={dragY => {
+                            setSprings(createFnSprings(dragY, i));
+                        }}
+                        onDragEnd={dragY => {
+                            setSprings(createFnSprings(dragY - scrollDrag.current, i));
+                            setSprings(createFnSprings(0, i));
+                        }}
                     >
                         {children[i]}
                     </DragItem>
