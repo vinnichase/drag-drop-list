@@ -42,13 +42,13 @@ const App = () => {
                     height: 800, width: 400, margin: 50, display: 'flex',
                 }}
             >
-                <DragList>
+                <DragList onMove={(fromIndex, toIndex) => setContent(R.move(fromIndex, toIndex))}>
                     {content.map(
-                        (_, i) => <ListItem key={`key${i}`} />,
+                        c => <ListItem key={`key${c}`} />,
                     )}
                 </DragList>
             </div>
-            <button onClick={() => setContent(R.append(1))}>+</button>
+            <button onClick={() => setContent(R.append(content.length))}>+</button>
             <button onClick={() => setContent(R.dropLast(1))}>-</button>
         </>
     );
