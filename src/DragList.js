@@ -14,6 +14,14 @@ const reduceIndexed = R.addIndex(R.reduce);
 const depDeepEquals = (prevProps, nextProps) => prevProps.deps && nextProps.deps
     ? R.equals(prevProps.deps, nextProps.deps)
     : false;
+export const isBetween = R.curry((left, right, val) => left < val && val < right);
+export const isBetweenIncl = R.curry((left, right, val) => left <= val && val <= right);
+export const isBetweenInclLeft = R.curry((left, right, val) => left <= val && val < right);
+export const isBetweenInclRight = R.curry((left, right, val) => left < val && val <= right);
+const findDragIndex = (dragY, list) => {
+    const dragIndex = list.findIndex(o => o.yPos + o.height / 2 >= dragY);
+    return dragIndex > -1 ? dragIndex : list.length - 1;
+};
 
 const useChildrenHeights = (children, onHeightChange) => {
     const heightsMap = useRef({});
@@ -62,12 +70,12 @@ const useChildrenHeights = (children, onHeightChange) => {
 
     const getItemYPos = index => {
         const yPos = R.pathOr(0, [index, 'yPos'], heightsArr.current);
-        const fromIndex = R.min(currentIndex.current, newIndex.current);
-        const toIndex = R.max(currentIndex.current, newIndex.current);
         if (index === currentIndex.current) {
             return newYPos.current;
         }
-        if (heightOffset.current !== 0 && fromIndex <= index && index <= toIndex) {
+        const fromIndex = R.min(currentIndex.current, newIndex.current);
+        const toIndex = R.max(currentIndex.current, newIndex.current);
+        if (heightOffset.current !== 0 && isBetweenIncl(fromIndex, toIndex)(index)) {
             return yPos + heightOffset.current;
         }
         return yPos;
@@ -78,16 +86,26 @@ const useChildrenHeights = (children, onHeightChange) => {
         updateHeight,
         getItemYPos,
         setDragDistance: (dragY, _currentIndex) => {
-            const _newIndex = heightsArr.current.findIndex(o => o.yPos + o.height / 2 > dragY);
-            const height = R.pathOr(0, [_currentIndex, 'height'], heightsArr.current);
-            newYPos.current = R.pathOr(0, [_newIndex, 'yPos'], heightsArr.current);
-            heightOffset.current = _currentIndex < _newIndex
-                ? -height
-                : _currentIndex > _newIndex
-                    ? height
-                    : 0;
-            newIndex.current = _newIndex < 0 ? heightsArr.current.length + _newIndex : _newIndex;
+            const _newIndex = findDragIndex(dragY, heightsArr.current);
+            const { yPos: yPosCurrentIndex, height: heightCurrentIndex } = R.path([_currentIndex], heightsArr.current);
+            const { yPos: yPosNewIndex, height: heightNewIndex } = R.path([_newIndex], heightsArr.current);
+
+            newIndex.current = _newIndex;
             currentIndex.current = _currentIndex;
+
+            if (_currentIndex < _newIndex) {
+                // MOVE DOWN
+                heightOffset.current = -heightCurrentIndex;
+                newYPos.current = yPosNewIndex + heightNewIndex - heightCurrentIndex;
+            } else if (_currentIndex > _newIndex) {
+                // MOVE UP
+                heightOffset.current = heightCurrentIndex;
+                newYPos.current = yPosNewIndex;
+            } else {
+                // STAY
+                heightOffset.current = 0;
+                newYPos.current = yPosCurrentIndex;
+            }
         },
     };
 };
@@ -273,10 +291,6 @@ export const DragList = ({ children }) => {
             zIndex: '0',
         };
 
-    const moveByDrag = (dragY, currentIndex) => {
-        setDragDistance(dragY, currentIndex);
-    };
-
     return (
         <div
             // eslint-disable-next-line react/jsx-props-no-spreading
@@ -316,11 +330,10 @@ export const DragList = ({ children }) => {
                             shadow,
                         }}
                         onDrag={async ({ absoluteY, relativeY }) => {
-                            moveByDrag(relativeY - scrollDrag.current, i);
+                            setDragDistance(relativeY - scrollDrag.current, i);
                             setSprings(createFnSprings(absoluteY, i));
                         }}
                         onDragEnd={({ relativeY }) => {
-                            moveByDrag(relativeY - scrollDrag.current, i);
                             setSprings(createFnSprings(relativeY - scrollDrag.current, i));
                             setSprings(createFnSprings(0, i));
                         }}
