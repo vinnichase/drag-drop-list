@@ -225,7 +225,7 @@ const useScrollDrag = containerRef => {
     };
 };
 
-const DragItem = ({
+const _DragItem = ({
     children,
     updateHeight,
     springProps: {
@@ -283,7 +283,7 @@ const DragItem = ({
         </ResizeObserver>
     );
 };
-// const DragItem = memo(_DragItem, depDeepEquals);
+const DragItem = memo(_DragItem, depDeepEquals);
 
 export const DragList = ({
     children,
