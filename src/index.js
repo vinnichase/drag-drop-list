@@ -17,6 +17,7 @@ const ListItem = () => {
             width: '100%',
         }}
         >
+            <div className="drag-handle">=</div>
             <button onClick={() => setContent(R.append(1))}>+</button>
             <button onClick={() => setContent(R.dropLast(1))}>-</button>
             <div>

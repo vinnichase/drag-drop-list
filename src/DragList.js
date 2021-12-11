@@ -257,11 +257,25 @@ const _DragItem = ({
         onDragEnd,
     });
 
+    useLayoutEffect(() => {
+        const handles = itemNode.current.getElementsByClassName
+            ? itemNode.current.getElementsByClassName('drag-handle')
+            : [];
+        R.forEach(handle => {
+            handle.onkeydown = bindDrag.onKeyDown;
+            handle.onkeyup = bindDrag.onKeyUp;
+            handle.onpointercancel = bindDrag.onPointerCancel;
+            handle.onpointerdown = bindDrag.onPointerDown;
+            handle.onpointermove = bindDrag.onPointerMove;
+            handle.onpointerup = bindDrag.onPointerUp;
+        })(handles);
+    });
+
     return (
         <ResizeObserver onResize={_updateHeight}>
             <animated.div
                 // eslint-disable-next-line react/jsx-props-no-spreading
-                {...bindDrag}
+                // {...bindDrag}
                 style={{
                     flex: 1,
                     position: 'absolute',
