@@ -6,7 +6,9 @@ import React, {
 } from 'react';
 import ResizeObserver from 'rc-resize-observer';
 import './styles.css';
-import { useSprings, animated, to } from '@react-spring/web';
+import {
+    animated, to, Controller,
+} from '@react-spring/web';
 import { useDrag } from '@use-gesture/react';
 import useInterval from './useInterval';
 
@@ -23,13 +25,47 @@ const findDragIndex = (dragY, list) => {
     return dragIndex > -1 ? dragIndex : list.length - 1;
 };
 
+const useSpringsMap = (map, omit) => {
+    const controllerMap = useRef({});
+
+    const getSpring = key => R.compose(
+        R.pathOr({}, [key, 'springs']),
+    )(controllerMap.current);
+    const updateMap = (_map, _omit = []) => {
+        R.compose(
+            R.mapObjIndexed((springValues, key) => {
+                const controller = controllerMap.current[key];
+                if (controller) {
+                    controller.set(springValues);
+                } else {
+                    controllerMap.current[key] = new Controller(springValues);
+                }
+            }),
+            R.omit(_omit),
+        )(_map);
+    };
+    const startSprings = fnProps => {
+        R.mapObjIndexed((controller, key) => {
+            controller.start(fnProps(key));
+        })(controllerMap.current);
+    };
+
+    useMemo(() => updateMap(map, omit), [map, omit]);
+    return {
+        springs: controllerMap.current,
+        getSpring,
+        updateMap,
+        startSprings,
+    };
+};
+
 const useChildrenHeights = (children, onHeightChange) => {
     const heightsMap = useRef({});
     const heightsArr = useRef([]);
     const heightSum = useRef(0);
     const _children = useRef([]);
-    const _fnSprings = index => ({
-        y: R.pathOr(heightSum.current, [index, 'yPos'])(heightsArr.current),
+    const _fnSprings = key => ({
+        yPos: R.pathOr(heightSum.current, [key, 'yPos'])(heightsMap.current),
         zIndex: '0',
         shadow: 0,
     });
@@ -49,22 +85,28 @@ const useChildrenHeights = (children, onHeightChange) => {
         onHeightChange && onHeightChange(heightSum.current);
     }, [onHeightChange]);
 
-    const [springs, springsApi] = useSprings(React.Children.count(children), index => ({
-        y: R.pathOr(heightSum.current, [index, 'yPos'])(heightsArr.current),
-        zIndex: '0',
-        shadow: 0,
-    }));
+    useMemo(() => composeHeights(), [composeHeights]);
+
+    const {
+        springs,
+        getSpring,
+        updateMap,
+        startSprings,
+    } = useSpringsMap(heightsMap.current, ['index', 'height']);
+
     useEffect(() => {
         _children.current = children;
         composeHeights();
-        springsApi.start(_fnSprings);
-    }, [composeHeights, springsApi, children, springs]);
+        updateMap(heightsMap.current, ['index', 'height']);
+        startSprings(_fnSprings);
+    }, [composeHeights, startSprings, updateMap, children]);
 
     const updateHeight = useCallback((key, height) => {
         heightsMap.current = R.assoc(key, { height }, heightsMap.current);
         composeHeights();
-        springsApi.start(_fnSprings);
-    }, [composeHeights, springsApi]);
+        updateMap(heightsMap.current, ['index', 'height']);
+        startSprings(_fnSprings);
+    }, [composeHeights, startSprings, updateMap]);
 
     const heightOffset = useRef(0);
     const currentIndex = useRef(0);
@@ -77,37 +119,31 @@ const useChildrenHeights = (children, onHeightChange) => {
         newYPos.current = 0;
     };
 
-    const getItemYPos = index => {
-        const yPos = R.pathOr(0, [index, 'yPos'], heightsArr.current);
-        if (index === currentIndex.current) {
-            return newYPos.current;
-        }
-        const fromIndex = R.min(currentIndex.current, newIndex.current);
-        const toIndex = R.max(currentIndex.current, newIndex.current);
-        if (heightOffset.current !== 0 && isBetweenIncl(fromIndex, toIndex)(index)) {
-            return yPos + heightOffset.current;
-        }
+    const getItemYPos = key => {
+        const yPos = R.pathOr(0, [key, 'yPos'], heightsMap.current);
+        // if (index === currentIndex.current) {
+        //     return newYPos.current;
+        // }
+        // const fromIndex = R.min(currentIndex.current, newIndex.current);
+        // const toIndex = R.max(currentIndex.current, newIndex.current);
+        // if (heightOffset.current !== 0 && isBetweenIncl(fromIndex, toIndex)(index)) {
+        //     return yPos + heightOffset.current;
+        // }
         return yPos;
     };
     return {
         springs,
-        setSprings: fnSprings => springsApi.start(fnSprings),
+        getSpring,
+        startSprings,
         updateHeight,
         getItemYPos,
         setDragEnd: (
             onFinish = (fromIndex = 0, toIndex = 0) => [fromIndex, toIndex],
-        ) => springsApi.start(index => ({
-            y: getItemYPos(index),
+        ) => startSprings(key => ({
+            yPos: getItemYPos(key),
             shadow: 0,
             zIndex: '0',
             onRest: () => {
-                // _children.current = R.move(currentIndex.current, newIndex.current, _children.current);
-                // composeHeights();
-                // springsApi.start(i => ({
-                //     y: getItemYPos(i),
-                //     shadow: 0,
-                //     zIndex: '0',
-                // }));
                 heightOffset.current !== 0 && onFinish(currentIndex.current, newIndex.current);
                 resetDragVars();
             },
@@ -229,14 +265,14 @@ const _DragItem = ({
     children,
     updateHeight,
     springProps: {
-        y,
+        yPos,
         zIndex,
         shadow,
     } = {},
     onDrag = ({ absoluteY = 0, relativeY = 0 }) => ({ absoluteY, relativeY }),
     onDragEnd = ({ absoluteY = 0, relativeY = 0 }) => ({ absoluteY, relativeY }),
 }) => {
-    console.log(y.goal);
+    // console.log(yPos.goal);
     const child = useMemo(() => React.Children.only(children), [children]);
     const itemNode = useRef(null);
     const item = useCallback(node => {
@@ -253,7 +289,7 @@ const _DragItem = ({
         bindDrag,
     } = useItemDrag({
         itemNode,
-        getOriginalY: () => y ? y.goal : 0,
+        getOriginalY: () => yPos ? yPos.goal : 0,
         onDrag,
         onDragEnd,
     });
@@ -268,11 +304,11 @@ const _DragItem = ({
                     position: 'absolute',
                     zIndex: zIndex || '0',
                     display: 'flex',
-                    boxShadow: shadow.to(
+                    boxShadow: shadow && shadow.to(
                         s => `rgba(0, 0, 0, 0.15) 0px ${s}px ${2 * s}px 0px`,
                     ),
                     transform: to(
-                        [y],
+                        [yPos],
                         yp => `translateY(${yp}px)`,
                     ),
                 }}
@@ -296,10 +332,11 @@ export const DragList = ({
         if (list.current) list.current.style.height = `${height}px`;
     }, []);
     const {
+        springs,
         setDragEnd,
         setDragDistance,
-        springs,
-        setSprings,
+        getSpring,
+        startSprings,
         updateHeight,
         getItemYPos,
     } = useChildrenHeights(children, setListHeight);
@@ -350,16 +387,15 @@ export const DragList = ({
                         key={children[i].key}
                         deps={{
                             key: children[i].key,
-                            spring: springs[i],
                         }}
                         updateHeight={updateHeight}
-                        springProps={springs[i]}
+                        springProps={springs[children[i].key] && springs[children[i].key].springs}
                         onDrag={async ({ absoluteY, relativeY }) => {
                             setDragDistance(relativeY - scrollDrag.current, i);
-                            setSprings(createFnSprings(absoluteY, i));
+                            startSprings(createFnSprings(absoluteY, i));
                         }}
                         onDragEnd={({ relativeY }) => {
-                            setSprings(createFnSprings(relativeY - scrollDrag.current, i));
+                            startSprings(createFnSprings(relativeY - scrollDrag.current, i));
                             setDragEnd(onMove);
                         }}
                     >
